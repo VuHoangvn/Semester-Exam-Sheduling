@@ -25,6 +25,7 @@ public class GenerateData {
 		int num_rooms;
 		int[] students;
 		Conflict[] conflicts;
+		int[] room_seats;
 		
 		for (File file: fileList) {
 			try {
@@ -33,7 +34,12 @@ public class GenerateData {
 				num_conflicts = in.nextInt();
 				students = new int[num_subjects];
 				conflicts = new Conflict[num_conflicts];
-				num_rooms = R.nextInt((int)num_subjects/3) + (int)num_subjects/4;
+				num_rooms = R.nextInt((int)num_subjects/3) + (int)num_subjects/3;
+				room_seats = new int[num_rooms];
+				
+				for (int k = 0; k < num_rooms; k++) {
+					room_seats[k] = R.nextInt(180) + 20;
+				}
 				
 				for (int k = 0; k < num_subjects; k++) {
 					students[k] = R.nextInt(150) + 30;
@@ -58,9 +64,16 @@ public class GenerateData {
 						out.print(students[k] + " ");
 					}
 					out.println();
+					
+					for (int k = 0; k < num_rooms; k++) {
+						out.print(room_seats[k] + " ");
+					}
+					out.println();
+					
 					for (int k = 0; k < num_conflicts; k++) {
 						out.println(conflicts[k].i + " " + conflicts[k].v);
 					}
+					
 					out.close();
 				}catch(Exception e) {
 					e.printStackTrace();
