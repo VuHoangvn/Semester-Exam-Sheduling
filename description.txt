@@ -1,0 +1,7 @@
+- bài toán:
+  + N môn 1, 2, ..., N cần xếp lịch thi học kỳ
+  + môn i có số lượng sinh viên đăng ký thi là d(i)
+  + N môn thi có các cặp (i, j) không thể xếp trùng kíp, ngày do có cùng sinh viên đăng ký
+  + có M phòng thi 1, 2, ..., M trong đó phòng j có số lượng chỗ ngồi c(j)
+  + mỗi ngày được chia thành 4 kíp
+  -> lập kế hoạch bố trí lịch và phòng cho các môn thi sao cho tổng số ngày diễn ra N môn thi là nhỏ nhất
