@@ -2,6 +2,9 @@ import com.google.ortools.linearsolver.MPConstraint;
 import com.google.ortools.linearsolver.MPObjective;
 import com.google.ortools.linearsolver.MPSolver;
 import com.google.ortools.linearsolver.MPVariable;
+import java.util.Collections;
+import java.util.Arrays;
+import java.util.Collection;
 
 public class ExamScheduling {
 	public static class Edge {
@@ -31,10 +34,29 @@ public class ExamScheduling {
 		int E = 23; // number of constraint two subjects
 		int R = 8; // number of rooms
 
-		Edge[] edges = { new Edge(0, 16), new Edge(1, 2), new Edge(1, 6), new Edge(1, 7), new Edge(1, 8),
-				new Edge(2, 11), new Edge(2, 16), new Edge(2, 17), new Edge(3, 14), new Edge(3, 16), new Edge(3, 17),
-				new Edge(4, 7), new Edge(4, 13), new Edge(4, 17), new Edge(5, 6), new Edge(5, 11), new Edge(6, 18),
-				new Edge(9, 12), new Edge(10, 13), new Edge(11, 17), new Edge(13, 15), new Edge(15, 17),
+		Edge[] edges = { 
+				new Edge(0, 16), 
+				new Edge(1, 2), 
+				new Edge(1, 6), 
+				new Edge(1, 7), 
+				new Edge(1, 8),
+				new Edge(2, 11), 
+				new Edge(2, 16), 
+				new Edge(2, 17), 
+				new Edge(3, 14), 
+				new Edge(3, 16), 
+				new Edge(3, 17),
+				new Edge(4, 7), 
+				new Edge(4, 13), 
+				new Edge(4, 17), 
+				new Edge(5, 6), 
+				new Edge(5, 11), 
+				new Edge(6, 18),
+				new Edge(9, 12), 
+				new Edge(10, 13), 
+				new Edge(11, 17), 
+				new Edge(13, 15), 
+				new Edge(15, 17),
 				new Edge(16, 19) };
 		//  number of student in subject
 		int[] d = { 90, 66, 129, 81, 167, 176, 83, 109, 87, 126, 30, 107, 67, 58, 49, 133, 41, 94, 150, 87 };
@@ -107,8 +129,6 @@ public class ExamScheduling {
 							constraint4[s1][s2][t][r].setCoefficient(y[s1][r], 1);
 							constraint4[s1][s2][t][r].setCoefficient(y[s2][r], 1);
 						} else {
-							constraint4[s1][s2][t][r] = solver.makeConstraint(0, 1);
-							constraint4[s1][s2][t][r].setCoefficient(x[0][0], 0);
 						}
 					}
 				}
@@ -117,22 +137,33 @@ public class ExamScheduling {
 
 		/** Minimize by default */
 		final MPSolver.ResultStatus resultStatus = solver.solve();
-
+		
 		/** printing */
 		if (resultStatus != MPSolver.ResultStatus.OPTIMAL) {
 			System.err.println("The problem does not have an optimal solution!");
 			return;
 		} else {
-			System.out.print("ket qua:" + "\n");
+			int[] swap_array = new int[T];
+			int	count = 0;
+			for (int t=0;t<T;t++) {
+				if(z[t].solutionValue() > 0) {
+					swap_array[t] = count;
+					count++;
+				}
+			}
+			int[] t_subject = new int[S];
 			for (int s = 0; s < S; s++) {
-				System.out.print("subject: " + s);
 				for (int t = 0; t < T; t++) {
 					if (x[s][t].solutionValue() > 0) {
-						System.out.print(" time slot: " + t);
+						t_subject[s] = swap_array[t];
 						break;
 					}
 				}
-				System.out.print("room: ");
+			}
+			System.out.print("Result:" + "\n");
+			for (int s = 0; s < S; s++) {
+				System.out.print("subject: " + s + "  time slot: "+t_subject[s]);
+				System.out.print(" room: ");
 				for (int r = 0; r< R; r++) {
 					if (y[s][r].solutionValue() > 0) {
 						System.out.print(r + "  ");
