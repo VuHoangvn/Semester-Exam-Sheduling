@@ -2,6 +2,11 @@ import com.google.ortools.linearsolver.MPConstraint;
 import com.google.ortools.linearsolver.MPObjective;
 import com.google.ortools.linearsolver.MPSolver;
 import com.google.ortools.linearsolver.MPVariable;
+import com.google.ortools.sat.CpModel;
+import com.google.ortools.sat.CpSolver;
+import com.google.ortools.sat.IntVar;
+import com.google.ortools.sat.CpSolverStatus;
+import com.google.ortools.sat.LinearExpr;
 import java.util.Collections;
 import java.util.Arrays;
 import java.util.Collection;
@@ -76,8 +81,10 @@ public class ExamScheduling {
 		}
 		// z[t] = 1 when time slot t is used
 		MPVariable[] z = solver.makeBoolVarArray(T);
+		MPVariable v = solver.makeIntVar(0,T ,"v") ;
 		// minimize number of time slots are used
 		MPObjective obj = solver.objective();
+//		obj.setCoefficient(v, 1);
 		for (MPVariable objVar : z) {
 			obj.setCoefficient(objVar, 1);
 		}
@@ -136,6 +143,7 @@ public class ExamScheduling {
 		}
 
 		/** Minimize by default */
+		obj.setMinimization();
 		final MPSolver.ResultStatus resultStatus = solver.solve();
 		
 		/** printing */
@@ -162,7 +170,7 @@ public class ExamScheduling {
 			}
 			System.out.print("Result:" + "\n");
 			for (int s = 0; s < S; s++) {
-				System.out.print("subject: " + s + "  time slot: "+t_subject[s]);
+				System.out.print("subject: " + s + "  time slot: " +t_subject[s]);
 				System.out.print(" room: ");
 				for (int r = 0; r< R; r++) {
 					if (y[s][r].solutionValue() > 0) {
@@ -176,6 +184,7 @@ public class ExamScheduling {
 		return;
 	}
 	
+	// model Mip 2
 	private static void solve2(String solverType) {
 		MPSolver solver = createSolver(solverType);
 		double infinity = MPSolver.infinity();
@@ -221,6 +230,7 @@ public class ExamScheduling {
 		MPVariable[][][] X = new MPVariable[S][T][R];
 		MPVariable[][] Y = new MPVariable[S][T];
 		MPVariable[] Z = new MPVariable[T];
+		
 		//add var x
 		for(int s=0; s<S;s++) {
 			for(int t=0;t<T;t++) {
@@ -289,7 +299,7 @@ public class ExamScheduling {
 				constraint5[s][t].setCoefficient(Y[s][t], -d[s]);
 			}
 		}
- 		//add objective
+  		//add objective
 		MPObjective obj = solver.objective();
 		for( MPVariable v : Z) {
 			obj.setCoefficient(v, 1);
@@ -322,24 +332,168 @@ public class ExamScheduling {
 		return;
 	}
 
+	// constrain solver
+	private static void cp_solver(int S,int R,int T,int E,Edge[] edges,int[] d, int[] c) {
+		int[][]	e_matrix = new int[S][S];
+		for(int e=0;e<E;e++) {
+			e_matrix[edges[e].a][edges[e].b] = 1;
+		}
+		CpModel model = new CpModel();
+		IntVar[] x = new IntVar[S];
+		IntVar[][] y = new IntVar[S][R];
+		for(int s=0;s<S;s++) {
+			x[s] = model.newIntVar(0, T-1,"x["+s+"]");
+			for(int r=0;r<R;r++) {
+				y[s][r] = model.newIntVar(0,1,"y["+s+"]["+r+"]");
+			}
+		}
+		// x[ea] != x[eb]
+		for(int e=0;e<E;e++) {
+			model.addDifferent(x[edges[e].a], x[edges[e].b]);
+		}
+		// Room(S) >= d(s)
+		for(int s=0;s<S;s++) {
+			model.addGreaterOrEqual(LinearExpr.scalProd(y[s],c), d[s]);
+		}
+		
+		// bool b1
+		// bool b2
+		IntVar[][] b1 = new IntVar[S][S];
+		IntVar[][][] b2 = new IntVar[S][S][R];
+		for(int s1=0;s1<S;s1++) {
+			for(int s2=0;s2<S;s2++) {
+				b1[s1][s2] = model.newBoolVar("b1_"+s1+"_"+s2);
+				for(int r=0;r<R;r++) {
+					b2[s1][s2][r] = model.newBoolVar("b2_"+s1+"_"+s2+"_"+r);
+				}
+			}
+		}
+		// b1 = x[s1] == x[s2]
+		for(int s1=0;s1<S;s1++) {
+			for(int s2=0;s2<S;s2++) {
+				if(s1 != s2) {
+					model.addEquality(x[s1], x[s2]).onlyEnforceIf(b1[s1][s2]);
+					model.addDifferent(x[s1], x[s2]).onlyEnforceIf(b1[s1][s2].not());
+					for(int r=0;r<R;r++) {
+						//b2 = y[s1][r]+y[s2][r] <= 1
+						model.addLessOrEqual(LinearExpr.sum(new IntVar[] {y[s1][r], y[s2][r]}), 1).onlyEnforceIf(b2[s1][s2][r]);;
+						model.addGreaterThan(LinearExpr.sum(new IntVar[] {y[s1][r], y[s2][r]}), 1).onlyEnforceIf(b2[s1][s2][r].not());
+						// x[s1] == x[s2] => y[s1][r] + y[s2][r] <= 1
+						model.addImplication(b1[s1][s2], b2[s1][s2][r]);
+				}
+				}
+			}
+		}
+//		 heuristic constraint		
+//		IntVar[][] z = new IntVar[S][R];
+//		for(int s=0;s<S;s++) {
+//			for(int r=0;r<R;r++) {
+//				z[s][r] = model.newIntVar(1, 1000, "z["+s+"]["+r+"]");
+//			}
+//		}
+//		IntVar[][] b3 = new IntVar[S][R];
+//		for(int s=0;s<S;s++) {
+//			for(int r=0;r<R;r++) {
+//				b3[s][r] = model.newBoolVar("b3["+s+"]["+r+"]");
+//				model.addEquality(y[s][r], 1).onlyEnforceIf(b3[s][r]);
+//				model.addLessThan(y[s][r], 1).onlyEnforceIf(b3[s][r].not());
+//				model.addEquality(z[s][r], c[r]).onlyEnforceIf(b3[s][r]);
+//				model.addEquality(z[s][r], 1000).onlyEnforceIf(b3[s][r].not());
+//			}
+//		}
+//		IntVar[] minc = new IntVar[S];
+//		for(int s=0;s<S;s++) {
+//			minc[s] = model.newIntVar(1, 1000, "minc["+s+"]");
+//			model.addMinEquality(minc[s], z[s]);
+//			model.addLessOrEqualWithOffset(LinearExpr.scalProd(y[s],c),minc[s], -d[s]);
+//		}
+		// add objective
+		
+		IntVar obj ;
+		obj = model.newIntVar(0, T-1, "obj");
+		model.addMaxEquality(obj, x);
+		model.minimize(obj);
+		
+		CpSolver solver = new CpSolver();
+		CpSolverStatus status = solver.solve(model);
+		System.out.println("--------------CP_Model--------------");
+		System.out.println("solve status: " + status);
+		if(status == CpSolverStatus.OPTIMAL) {
+			for (int s = 0; s < S; s++) {
+				System.out.print("subject: " + s + "  time slot: " + solver.value(x[s]));
+				System.out.print(" room: ");
+				for (int r = 0; r< R; r++) {
+					if (solver.value(y[s][r]) > 0) {
+						System.out.print(r + "  ");
+					}
+				}
+				System.out.print("\n");
+				
+			}
+		}
+		else {
+			System.out.print("don't have solution!!!!!!");
+		}
+		return;
+	}
+		
+		
+	
 	public static void main(String[] args) {
-		try {
-			System.out.println("---- Integer programming example with SCIP (recommended) ----");
-			solve("SCIP_MIXED_INTEGER_PROGRAMMING");
-		} catch (java.lang.IllegalArgumentException e) {
-			System.err.println("Bad solver type: " + e);
-		}
-		try {
-			System.out.println("---- Integer programming example with CBC ----");
-			solve("CBC_MIXED_INTEGER_PROGRAMMING");
-		} catch (java.lang.IllegalArgumentException e) {
-			System.err.println("Bad solver type: " + e);
-		}
-		try {
-			System.out.println("---- Integer programming example with GLPK ----");
-			solve("GLPK_MIXED_INTEGER_PROGRAMMING");
-		} catch (java.lang.IllegalArgumentException e) {
-			System.err.println("Bad solver type: " + e);
-		}
+		int T = 20; // max time slot 
+		int S = 20; // number of subjects
+		int E = 23; // number of constraint two subjects
+		int R = 8; // number of rooms
+
+		Edge[] edges = { 
+				new Edge(0, 16), 
+				new Edge(1, 2), 
+				new Edge(1, 6), 
+				new Edge(1, 7), 
+				new Edge(1, 8),
+				new Edge(2, 11), 
+				new Edge(2, 16), 
+				new Edge(2, 17), 
+				new Edge(3, 14), 
+				new Edge(3, 16), 
+				new Edge(3, 17),
+				new Edge(4, 7), 
+				new Edge(4, 13), 
+				new Edge(4, 17), 
+				new Edge(5, 6), 
+				new Edge(5, 11), 
+				new Edge(6, 18),
+				new Edge(9, 12), 
+				new Edge(10, 13), 
+				new Edge(11, 17), 
+				new Edge(13, 15), 
+				new Edge(15, 17),
+				new Edge(16, 19) };
+		//  number of student in subject
+		int[] d = { 90, 66, 129, 81, 167, 176, 83, 109, 87, 126, 30, 107, 67, 58, 49, 133, 41, 94, 150, 87 };
+		// max student in room
+		int[] c = { 193, 95, 195, 39, 172, 173, 29, 53 };
+//		try {
+//			System.out.println("---- Integer programming example with SCIP (recommended) ----");
+//			solve("SCIP_MIXED_INTEGER_PROGRAMMING");
+//		} catch (java.lang.IllegalArgumentException e) {
+//			System.err.println("Bad solver type: " + e);
+//		}
+//		try {
+//			System.out.println("---- Integer programming example with CBC ----");
+//			solve("CBC_MIXED_INTEGER_PROGRAMMING");
+//		} catch (java.lang.IllegalArgumentException e) {
+//			System.err.println("Bad solver type: " + e);
+//		}
+//		try {
+//			System.out.println("---- Integer programming example with GLPK ----");
+//			solve("GLPK_MIXED_INTEGER_PROGRAMMING");
+//		} catch (java.lang.IllegalArgumentException e) {
+//			System.err.println("Bad solver type: " + e);
+//		}
+		long time_start = System.currentTimeMillis();
+		cp_solver(S,R, T, E, edges, d, c);
+		long time_end = System.currentTimeMillis();
+		System.out.print("\n"+(time_end - time_start)/1000.0);
 	}
 }
